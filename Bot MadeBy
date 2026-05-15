@@ -348,7 +348,6 @@ async def ajuda(interaction: discord.Interaction):
 # Events
 @bot.event
 async def on_ready():
-    await load_data()
     print(f"🚀 **BOT MADEBY** online em {len(bot.guilds)} servidores!")
     try:
         synced = await bot.tree.sync()
@@ -356,15 +355,13 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Erro ao sincronizar: {e}")
 
-# Tarefas automáticas
-@tasks.loop(hours=1)
-async def atualizar_idg():
-    for nacao, data in nacoes.items():
-        # Lógica simples de IDG
-        data['idg'] = min(1000, data['idg'] + random.randint(-5, 15))
-        data['economia']['pib'] += random.randint(50, 200)
-    await save_data()
-
-# Executar bot
 if __name__ == "__main__":
-    bot.run(os.getenv("DISCORD_TOKEN"))
+    try:
+        TOKEN = os.getenv("DISCORD_TOKEN")
+        if not TOKEN:
+            print("❌ ERRO: DISCORD_TOKEN não encontrado!")
+        else:
+            print("🔑 TOKEN encontrado, iniciando...")
+            bot.run(TOKEN)
+    except Exception as e:
+        print(f"💥 ERRO CRÍTICO: {e}")
