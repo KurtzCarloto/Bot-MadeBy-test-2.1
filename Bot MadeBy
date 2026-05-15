@@ -1,0 +1,368 @@
+
+# bot_madeby.py
+import discord
+from discord.ext import commands, tasks
+from discord import app_commands
+import json
+import os
+import asyncio
+import random
+from datetime import datetime, timedelta
+import aiofiles
+
+# Configurações do Bot
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+# Cores oficiais MADEBY
+MADEBY_COLOR = 0x1a1a2e  # Azul escuro militar
+MADEBY_SUCCESS = 0x00ff88  # Verde militar
+MADEBY_DANGER = 0xff4444  # Vermelho guerra
+MADEBY_WARNING = 0xffaa00  # Amarelo alerta
+
+# Arquivos de dados
+DATA_DIR = "madeby_data"
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# Estruturas de dados
+nacoes = {}
+usuarios = {}
+guerras = {}
+economia = {}
+idg_ranking = {}
+alianças = {}
+militares = {}
+eleicoes = {}
+leis = {}
+eventos = {}
+
+# Carregar dados
+async def load_data():
+    global nacoes, usuarios, guerras, economia, idg_ranking, alianças, militares, eleicoes, leis, eventos
+    
+    files = {
+        'nacoes.json': 'nacoes',
+        'usuarios.json': 'usuarios',
+        'guerras.json': 'guerras',
+        'economia.json': 'economia',
+        'idg_ranking.json': 'idg_ranking',
+        'aliancas.json': 'alianças',
+        'militares.json': 'militares',
+        'eleicoes.json': 'eleicoes',
+        'leis.json': 'leis',
+        'eventos.json': 'eventos'
+    }
+    
+    for file, var in files.items():
+        try:
+            async with aiofiles.open(f"{DATA_DIR}/{file}", 'r') as f:
+                data = await f.read()
+                globals()[var] = json.loads(data) if data else {}
+        except:
+            globals()[var] = {}
+
+# Salvar dados
+async def save_data():
+    files = {
+        'nacoes.json': nacoes,
+        'usuarios.json': usuarios,
+        'guerras.json': guerras,
+        'economia.json': economia,
+        'idg_ranking.json': idg_ranking,
+        'aliancas.json': alianças,
+        'militares.json': militares,
+        'eleicoes.json': eleicoes,
+        'leis.json': leis,
+        'eventos.json': eventos
+    }
+    
+    for file, data in files.items():
+        async with aiofiles.open(f"{DATA_DIR}/{file}", 'w') as f:
+            await f.write(json.dumps(data, indent=2, ensure_ascii=False))
+
+# Embed padrão MADEBY
+def madeby_embed(title, description, color=MADEBY_COLOR):
+    return discord.Embed(
+        title=f"👑 **MADEBY** | {title}",
+        description=description,
+        color=color,
+        timestamp=datetime.now()
+    ).set_footer(text="MadeBy Nation System | Poder pela Ordem")
+
+# 1. SISTEMA DE NAÇÃO
+@bot.tree.command(name="pais", description="Sistema de Nações")
+@app_commands.describe(action="Ação do sistema de nações")
+async def pais(interaction: discord.Interaction, action: str):
+    user_id = str(interaction.user.id)
+    
+    if action == "criar":
+        if user_id in usuarios:
+            await interaction.response.send_message("❌ Você já tem uma nação!", ephemeral=True)
+            return
+            
+        nome = interaction.user.display_name.replace(" ", "_").upper()
+        nacoes[nome] = {
+            "lider": user_id,
+            "membros": [user_id],
+            "economia": {"pib": 1000, "tesouro": 5000},
+            "idg": 10,
+            "urbanizacao": 20,
+            "militar": 100,
+            "criado": datetime.now().isoformat()
+        }
+        usuarios[user_id] = {"nacao": nome, "dinheiro": 1000, "xp": 0, "nivel": 1}
+        
+        embed = madeby_embed("🏛️ Nação Criada", f"**{nome}** foi fundada!\n👑 Líder: {interaction.user.mention}")
+        embed.add_field(name="📊 Status Inicial", value="💰 PIB: $1.000\n💎 Tesouro: $5.000\n⚔️ IDG: 10", inline=False)
+        await interaction.response.send_message(embed=embed)
+    
+    elif action == "info":
+        if user_id not in usuarios:
+            await interaction.response.send_message("❌ Crie uma nação primeiro!", ephemeral=True)
+            return
+            
+        nacao = usuarios[user_id]["nacao"]
+        data = nacoes[nacao]
+        
+        embed = madeby_embed(f"📊 {nacao}", f"**Estado Atual da Nação**")
+        embed.add_field(name="👑 Líder", value=f"<@{data['lider']}>", inline=True)
+        embed.add_field(name="👥 Membros", value=len(data['membros']), inline=True)
+        embed.add_field(name="💎 PIB", value=f"${data['economia']['pib']:,.0f}", inline=True)
+        embed.add_field(name="⚔️ IDG", value=data['idg'], inline=True)
+        await interaction.response.send_message(embed=embed)
+    
+    await save_data()
+
+# 2. SISTEMA DE GUERRA
+@bot.tree.command(name="guerra", description="Sistema de Guerras")
+@app_commands.describe(action="Ação da guerra")
+async def guerra(interaction: discord.Interaction, action: str, alvo: discord.Member = None):
+    if action == "iniciar" and alvo:
+        user_id = str(interaction.user.id)
+        if user_id not in usuarios:
+            await interaction.response.send_message("❌ Crie uma nação primeiro!", ephemeral=True)
+            return
+            
+        nacao_atacante = usuarios[user_id]["nacao"]
+        if nacao_atacante not in nacoes:
+            await interaction.response.send_message("❌ Nação não encontrada!", ephemeral=True)
+            return
+            
+        id_alvo = str(alvo.id)
+        if id_alvo not in usuarios:
+            await interaction.response.send_message("❌ Alvo não tem nação!", ephemeral=True)
+            return
+            
+        nacao_alvo = usuarios[id_alvo]["nacao"]
+        
+        guerra_id = f"{nacao_atacante}_vs_{nacao_alvo}_{int(datetime.now().timestamp())}"
+        guerras[guerra_id] = {
+            "atacante": nacao_atacante,
+            "defensor": nacao_alvo,
+            "status": "pendente",
+            "data": datetime.now().isoformat(),
+            "perdas": {"atacante": 0, "defensor": 0}
+        }
+        
+        embed = madeby_embed("⚔️ DECLARAÇÃO DE GUERRA", f"**{nacao_atacante}** declarou guerra contra **{nacao_alvo}**!\n\n🕐 Aguardando resposta...", color=MADEBY_DANGER)
+        await interaction.response.send_message(embed=embed)
+    
+    await save_data()
+
+# 3. ECONOMIA
+@bot.tree.command(name="saldo", description="Ver seu saldo")
+async def saldo(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    if user_id not in usuarios:
+        await interaction.response.send_message("❌ Crie uma nação primeiro!", ephemeral=True)
+        return
+        
+    dinheiro = usuarios[user_id]["dinheiro"]
+    embed = madeby_embed("💰 Saldo Pessoal", f"**${dinheiro:,.0f}**", MADEBY_SUCCESS)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="pagar", description="Pagar outro usuário")
+@app_commands.describe(alvo="Quem receberá", valor="Valor a enviar")
+async def pagar(interaction: discord.Interaction, alvo: discord.Member, valor: int):
+    user_id = str(interaction.user.id)
+    alvo_id = str(alvo.id)
+    
+    if user_id not in usuarios or alvo_id not in usuarios:
+        await interaction.response.send_message("❌ Usuários inválidos!", ephemeral=True)
+        return
+    
+    if usuarios[user_id]["dinheiro"] < valor:
+        await interaction.response.send_message("❌ Saldo insuficiente!", ephemeral=True)
+        return
+    
+    usuarios[user_id]["dinheiro"] -= valor
+    usuarios[alvo_id]["dinheiro"] += valor
+    
+    embed = madeby_embed("💸 Transferência", f"**${valor:,.0f}** enviados para {alvo.mention}", MADEBY_SUCCESS)
+    await interaction.response.send_message(embed=embed)
+    await save_data()
+
+# 4. IDG AUTOMÁTICO
+@bot.tree.command(name="idg", description="Sistema IDG")
+@app_commands.describe(action="Ação do IDG")
+async def idg(interaction: discord.Interaction, action: str):
+    if action == "ranking":
+        top_nacoes = sorted(nacoes.items(), key=lambda x: x[1]['idg'], reverse=True)[:10]
+        
+        embed = madeby_embed("⚔️ RANKING IDG GLOBAL", "")
+        for i, (nome, data) in enumerate(top_nacoes, 1):
+            embed.add_field(
+                name=f"{i}. {nome}",
+                value=f"IDG: **{data['idg']}** | PIB: ${data['economia']['pib']:,.0f}",
+                inline=False
+            )
+        await interaction.response.send_message(embed=embed)
+    
+    await save_data()
+
+# 5. ALIANÇAS
+@bot.tree.command(name="alianca", description="Sistema de Alianças")
+@app_commands.describe(action="Ação da aliança", alvo="Nação alvo")
+async def alianca(interaction: discord.Interaction, action: str, alvo: str = None):
+    if action == "enviar" and alvo:
+        user_id = str(interaction.user.id)
+        if user_id not in usuarios:
+            await interaction.response.send_message("❌ Crie uma nação primeiro!", ephemeral=True)
+            return
+            
+        nacao_origem = usuarios[user_id]["nacao"]
+        aliança_id = f"{nacao_origem}_{alvo}_{int(datetime.now().timestamp())}"
+        
+        alianças[aliança_id] = {
+            "origem": nacao_origem,
+            "alvo": alvo,
+            "status": "pendente",
+            "tipo": "militar"
+        }
+        
+        embed = madeby_embed("🤝 PROPOSTA DE ALIANÇA", f"**{nacao_origem}** propôs aliança com **{alvo}**", MADEBY_SUCCESS)
+        await interaction.response.send_message(embed=embed)
+    
+    await save_data()
+
+# 6. MILITAR
+@bot.tree.command(name="exercito", description="Ver exército da nação")
+async def exercito(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    if user_id not in usuarios:
+        await interaction.response.send_message("❌ Crie uma nação primeiro!", ephemeral=True)
+        return
+    
+    nacao = usuarios[user_id]["nacao"]
+    militares_nacao = militares.get(nacao, {"soldados": 50, "generais": 1})
+    
+    embed = madeby_embed("🪖 EXÉRCITO NACIONAL", f"**Forças Armadas de {nacao}**")
+    embed.add_field(name="⚔️ Soldados", value=militares_nacao["soldados"], inline=True)
+    embed.add_field(name="⭐ Generais", value=militares_nacao["generais"], inline=True)
+    embed.add_field(name="💪 Poder Total", value="🔥 **PRONTO**", inline=True)
+    
+    await interaction.response.send_message(embed=embed)
+
+# 7. GOVERNO
+@bot.tree.command(name="eleicao", description="Sistema Eleitoral")
+@app_commands.describe(action="Ação eleitoral")
+async def eleicao(interaction: discord.Interaction, action: str):
+    embed = madeby_embed("🗳️ SISTEMA ELEITORAL", "Em desenvolvimento...", MADEBY_WARNING)
+    await interaction.response.send_message(embed=embed)
+    await save_data()
+
+# 8. LEIS
+@bot.tree.command(name="leis", description="Sistema de Leis")
+async def leis_cmd(interaction: discord.Interaction):
+    embed = madeby_embed("📜 CONSTITUIÇÃO NACIONAL", "Leis em vigor:\n• Ordem e Disciplina\n• Defesa Nacional", MADEBY_COLOR)
+    await interaction.response.send_message(embed=embed)
+
+# 9. EVENTOS
+@bot.tree.command(name="evento", description="Sistema de Eventos")
+@app_commands.describe(action="Ação do evento", nome="Nome do evento")
+async def evento(interaction: discord.Interaction, action: str, nome: str = None):
+    if action == "criar" and nome:
+        evento_id = f"{int(datetime.now().timestamp())}_{nome.replace(' ', '_')}"
+        eventos[evento_id] = {
+            "nome": nome,
+            "criador": str(interaction.user.id),
+            "status": "criado",
+            "participantes": []
+        }
+        
+        embed = madeby_embed("🎉 EVENTO CRIADO", f"**{nome}** foi registrado!\n\n📢 Anuncie para todos participarem!", MADEBY_SUCCESS)
+        await interaction.response.send_message(embed=embed)
+    
+    await save_data()
+
+# 10. MAPA
+@bot.tree.command(name="mapa", description="Mapa Global")
+async def mapa(interaction: discord.Interaction):
+    embed = madeby_embed("🌎 MAPA GLOBAL", """
+    ```
+    🌊  🏔️  🏝️  🏭  🏰
+    [BR] [US] [RU] [CN] [EU]
+        Territórios controlados
+    ```
+    **Use /territorio para ver seus domínios**
+    """, MADEBY_COLOR)
+    await interaction.response.send_message(embed=embed)
+
+# 11. JORNAL MADEBY
+@bot.tree.command(name="jornal", description="Jornal Oficial")
+async def jornal(interaction: discord.Interaction):
+    noticias = [
+        "⚔️ Tensões crescem na fronteira oriental",
+        "💰 Economia nacional em alta!",
+        "🪖 Recrutamento militar intensificado"
+    ]
+    
+    embed = madeby_embed("📰 JORNAL MADEBY", "\n".join(random.choices(noticias, k=3)), MADEBY_WARNING)
+    await interaction.response.send_message(embed=embed)
+
+# 12. IA ASSISTENTE
+@bot.tree.command(name="ajuda", description="Assistente IA MADEBY")
+async def ajuda(interaction: discord.Interaction):
+    embed = madeby_embed("🤖 ASSISTENTE IA", """
+    **🏛️ NAÇÕES**
+    `/pais criar` | `/pais info`
+    
+    **⚔️ GUERRAS**  
+    `/guerra iniciar @alvo`
+    
+    **💰 ECONOMIA**
+    `/saldo` | `/pagar @alvo 100`
+    
+    **📊 IDG**
+    `/idg ranking`
+    
+    **Mais comandos em breve!**
+    """)
+    await interaction.response.send_message(embed=embed)
+
+# Events
+@bot.event
+async def on_ready():
+    await load_data()
+    print(f"🚀 **BOT MADEBY** online em {len(bot.guilds)} servidores!")
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ {len(synced)} comandos sincronizados!")
+    except Exception as e:
+        print(f"❌ Erro ao sincronizar: {e}")
+
+# Tarefas automáticas
+@tasks.loop(hours=1)
+async def atualizar_idg():
+    for nacao, data in nacoes.items():
+        # Lógica simples de IDG
+        data['idg'] = min(1000, data['idg'] + random.randint(-5, 15))
+        data['economia']['pib'] += random.randint(50, 200)
+    await save_data()
+
+# Executar bot
+if __name__ == "__main__":
+    bot.run("MTUwNDY5OTU0MzExMzk2MTYyNA.GHy-xM.v7ryIX86iWwIaNsPP8qqMGd_uB-3IGjqxxlkFE")
