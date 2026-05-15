@@ -365,4 +365,4 @@ async def atualizar_idg():
 
 # Executar bot
 if __name__ == "__main__":
-    bot.run("MTUwNDY5OTU0MzExMzk2MTYyNA.GHy-xM.v7ryIX86iWwIaNsPP8qqMGd_uB-3IGjqxxlkFE")
+    bot.run("")
