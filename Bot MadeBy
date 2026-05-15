@@ -1,4 +1,6 @@
-
+import os
+from dotenv import load_dotenv
+load_dotenv()
 # bot_madeby.py
 import discord
 from discord.ext import commands, tasks
